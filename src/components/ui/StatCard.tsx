@@ -8,12 +8,12 @@ interface StatCardProps {
 
 export default function StatCard({ label, value, change, positive, icon }: StatCardProps) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
+    <div className="surface-panel rounded-2xl p-4 md:p-5">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-sm text-gray-500">{label}</span>
-        {icon && <span className="text-gray-400">{icon}</span>}
+        <span className="text-sm text-slate-500">{label}</span>
+        {icon && <span className="text-slate-400">{icon}</span>}
       </div>
-      <div className="text-2xl font-bold text-gray-900">{value}</div>
+      <div className="text-xl font-bold text-slate-900 md:text-2xl">{value}</div>
       {change && (
         <span
           className={`text-sm font-medium ${

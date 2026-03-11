@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useFetch, formatCurrency, formatDate } from "@/lib/hooks";
 import Card from "@/components/ui/Card";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import ErrorAlert from "@/components/ui/ErrorAlert";
 import type { EntidadResponse } from "@/types/bcra";
-import { Search, AlertTriangle, CheckCircle, XCircle } from "lucide-react";
+import { Search, AlertTriangle, CheckCircle, XCircle, ShieldCheck, CircleAlert } from "lucide-react";
 
 interface ReporteCompleto {
   status: number;
@@ -19,12 +19,12 @@ interface ReporteCompleto {
 }
 
 const SITUACION_LABELS: Record<number, { label: string; color: string }> = {
-  1: { label: "Normal", color: "text-green-600 bg-green-50" },
-  2: { label: "Riesgo bajo", color: "text-yellow-600 bg-yellow-50" },
-  3: { label: "Riesgo medio", color: "text-orange-600 bg-orange-50" },
-  4: { label: "Riesgo alto", color: "text-red-500 bg-red-50" },
-  5: { label: "Irrecuperable", color: "text-red-700 bg-red-100" },
-  6: { label: "Irrecuperable por Disp. Técnica", color: "text-red-900 bg-red-200" },
+  1: { label: "Normal", color: "text-emerald-700 bg-emerald-100" },
+  2: { label: "Riesgo bajo", color: "text-yellow-700 bg-yellow-100" },
+  3: { label: "Riesgo medio", color: "text-orange-700 bg-orange-100" },
+  4: { label: "Riesgo alto", color: "text-rose-700 bg-rose-100" },
+  5: { label: "Irrecuperable", color: "text-red-800 bg-red-100" },
+  6: { label: "Irrecuperable tecnica", color: "text-red-900 bg-red-200" },
 };
 
 export default function DeudoresPage() {
@@ -34,15 +34,8 @@ export default function DeudoresPage() {
   const [chequeNumero, setChequeNumero] = useState("");
   const [chequeUrl, setChequeUrl] = useState<string | null>(null);
 
-  // Reporte de deudas
-  const { data: reporte, loading: loadReporte, error: errReporte } =
-    useFetch<ReporteCompleto>(searchUrl);
-
-  // Cheque denunciado
-  const { data: chequeData, loading: loadCheque, error: errCheque } =
-    useFetch<any>(chequeUrl);
-
-  // Entidades para el selector de cheques
+  const { data: reporte, loading: loadReporte, error: errReporte } = useFetch<ReporteCompleto>(searchUrl);
+  const { data: chequeData, loading: loadCheque, error: errCheque } = useFetch<any>(chequeUrl);
   const { data: entidades } = useFetch<EntidadResponse>("/api/cheques");
 
   function handleSearch(e: React.FormEvent) {
@@ -56,59 +49,67 @@ export default function DeudoresPage() {
   function handleChequeSearch(e: React.FormEvent) {
     e.preventDefault();
     if (chequeEntidad && chequeNumero) {
-      setChequeUrl(
-        `/api/cheques/denunciados?entidad=${chequeEntidad}&cheque=${chequeNumero}`
-      );
+      setChequeUrl(`/api/cheques/denunciados?entidad=${chequeEntidad}&cheque=${chequeNumero}`);
     }
   }
 
   const deudas = reporte?.results?.deudas?.results;
   const historial = reporte?.results?.historial?.results;
   const chequesRech = reporte?.results?.chequesRechazados?.results;
+  const apiErrors = reporte?.results?.errors ?? [];
+  const entidadesActuales = deudas?.periodos?.[0]?.entidades || [];
+
+  const resumen = useMemo(() => {
+    if (!entidadesActuales.length) return null;
+    const peor = entidadesActuales.reduce((max: number, item: any) => Math.max(max, item.situacion || 0), 0);
+    const montoTotal = entidadesActuales.reduce((acc: number, item: any) => acc + (item.monto || 0), 0);
+    return {
+      peor,
+      montoTotal,
+      entidades: entidadesActuales.length,
+    };
+  }, [entidadesActuales]);
 
   return (
-    <div className="max-w-6xl">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Consulta Crediticia</h1>
-        <p className="text-gray-500 mt-1">
-          Central de Deudores v1.0 + Cheques Denunciados v1.0
+    <div className="mx-auto max-w-7xl space-y-5 animate-fade-in">
+      <section className="surface-panel rounded-3xl bg-gradient-to-r from-slate-900 to-bcra-blue p-5 text-white md:p-7">
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-200">Consulta prioritaria</p>
+        <h1 className="text-2xl font-bold md:text-3xl">Consulta Crediticia</h1>
+        <p className="mt-2 max-w-3xl text-sm text-slate-200">
+          Mira tu situacion en segundos: deudas activas, historial y chequeos de seguridad.
+          Diseñado para uso rapido desde celular.
         </p>
-      </div>
+      </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        {/* Búsqueda por CUIT */}
-        <Card title="Buscar por CUIT/CUIL/CDI">
-          <form onSubmit={handleSearch} className="flex gap-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card title="Buscar por CUIT/CUIL/CDI" subtitle="Ingresa 11 digitos para ver el reporte completo.">
+          <form onSubmit={handleSearch} className="space-y-3">
             <input
               type="text"
               value={cuit}
               onChange={(e) => setCuit(e.target.value)}
               placeholder="20-12345678-9"
               maxLength={13}
-              className="flex-1 border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-bcra-blue"
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base focus:border-bcra-blue focus:outline-none"
             />
             <button
               type="submit"
-              className="bg-bcra-blue text-white rounded-lg px-5 py-2.5 text-sm font-medium hover:bg-bcra-blue/90 flex items-center gap-2"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-bcra-blue px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-bcra-blue/90"
             >
               <Search size={16} />
-              Consultar
+              Consultar historial crediticio
             </button>
           </form>
-          <p className="text-xs text-gray-400 mt-2">
-            Ingresá el CUIT/CUIL/CDI sin guiones (11 dígitos)
-          </p>
         </Card>
 
-        {/* Búsqueda de cheque denunciado */}
-        <Card title="Verificar Cheque Denunciado">
-          <form onSubmit={handleChequeSearch} className="flex gap-2">
+        <Card title="Verificar cheque denunciado" subtitle="Antes de aceptar un cheque, confirma si tiene denuncia.">
+          <form onSubmit={handleChequeSearch} className="space-y-3">
             <select
               value={chequeEntidad}
               onChange={(e) => setChequeEntidad(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm w-48"
+              className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm"
             >
-              <option value="">Entidad...</option>
+              <option value="">Selecciona entidad</option>
               {entidades?.results?.map((e) => (
                 <option key={e.codigoEntidad} value={e.codigoEntidad}>
                   {e.denominacion}
@@ -119,144 +120,146 @@ export default function DeudoresPage() {
               type="text"
               value={chequeNumero}
               onChange={(e) => setChequeNumero(e.target.value)}
-              placeholder="N° Cheque"
-              className="flex-1 border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-bcra-blue"
+              placeholder="Numero de cheque"
+              className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm focus:border-bcra-blue focus:outline-none"
             />
             <button
               type="submit"
-              className="bg-amber-600 text-white rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-amber-700"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-3 text-sm font-semibold text-white hover:bg-amber-700"
             >
-              Verificar
+              <ShieldCheck size={16} />
+              Verificar cheque
             </button>
           </form>
         </Card>
       </div>
 
-      {/* Resultado cheque denunciado */}
       {loadCheque && <LoadingSpinner text="Verificando cheque..." />}
       {errCheque && <ErrorAlert message={errCheque} />}
       {chequeData?.results && (
-        <Card className="mb-8">
-          <div className="flex items-center gap-3">
+        <Card>
+          <div className="flex items-start gap-3">
             {chequeData.results.denunciado ? (
-              <>
-                <XCircle className="text-red-600" size={24} />
-                <div>
-                  <p className="font-bold text-red-600">CHEQUE DENUNCIADO</p>
-                  <p className="text-sm text-gray-500">
-                    Cheque #{chequeData.results.numeroCheque} —{" "}
-                    {chequeData.results.denominacionEntidad}
-                  </p>
-                  {chequeData.results.detalles?.map((d: any, i: number) => (
-                    <p key={i} className="text-sm text-gray-600">
-                      Sucursal {d.sucursal} — Cuenta {d.numeroCuenta} — {d.causal}
-                    </p>
-                  ))}
-                </div>
-              </>
+              <XCircle className="mt-1 text-red-600" size={24} />
             ) : (
-              <>
-                <CheckCircle className="text-green-600" size={24} />
-                <div>
-                  <p className="font-bold text-green-600">CHEQUE NO DENUNCIADO</p>
-                  <p className="text-sm text-gray-500">
-                    Cheque #{chequeData.results.numeroCheque} sin denuncias registradas
-                  </p>
-                </div>
-              </>
+              <CheckCircle className="mt-1 text-emerald-600" size={24} />
             )}
+            <div className="space-y-1">
+              <p className={`text-base font-bold ${chequeData.results.denunciado ? "text-red-700" : "text-emerald-700"}`}>
+                {chequeData.results.denunciado ? "Cheque denunciado" : "Cheque sin denuncias"}
+              </p>
+              <p className="text-sm text-slate-500">
+                Nro {chequeData.results.numeroCheque} - {chequeData.results.denominacionEntidad}
+              </p>
+              {chequeData.results.detalles?.map((d: any, i: number) => (
+                <p key={i} className="text-sm text-slate-600">
+                  Sucursal {d.sucursal} | Cuenta {d.numeroCuenta} | {d.causal}
+                </p>
+              ))}
+            </div>
           </div>
         </Card>
       )}
 
-      {/* Resultados del reporte crediticio */}
       {loadReporte && <LoadingSpinner text="Consultando Central de Deudores..." />}
       {errReporte && <ErrorAlert message={errReporte} />}
 
-      {reporte?.results?.errors && reporte.results.errors.length > 0 && (
-        <div className="mb-4">
-          {reporte.results.errors.map((e, i) => (
+      {apiErrors.length > 0 && (
+        <div className="space-y-2">
+          {apiErrors.map((e, i) => (
             <ErrorAlert key={i} message={e} />
           ))}
         </div>
       )}
 
       {deudas && (
-        <div className="space-y-6 animate-fade-in">
-          <div className="flex items-center gap-3 mb-2">
-            <h2 className="text-lg font-bold text-gray-900">
-              Reporte: {deudas.denominacion}
-            </h2>
-            <span className="text-sm text-gray-400">CUIT: {deudas.identificacion}</span>
-          </div>
+        <div className="space-y-5">
+          <Card>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-slate-500">Titular consultado</p>
+                <h2 className="text-xl font-bold text-slate-900">{deudas.denominacion}</h2>
+                <p className="text-sm text-slate-500">CUIT: {deudas.identificacion}</p>
+              </div>
+              {resumen && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+                  <p className="mb-1 font-semibold text-slate-700">Semaforo crediticio</p>
+                  <p className="text-slate-600">{SITUACION_LABELS[resumen.peor]?.label || `Situacion ${resumen.peor}`}</p>
+                  <p className="text-slate-600">Deuda total: $ {formatCurrency(resumen.montoTotal)}</p>
+                  <p className="text-slate-600">Entidades: {resumen.entidades}</p>
+                </div>
+              )}
+            </div>
+          </Card>
 
-          {/* Deudas actuales */}
-          <Card title="Situación Crediticia Actual">
-            {deudas.periodos?.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-100">
-                      <th className="text-left py-2 px-3 text-gray-500 font-medium">Entidad</th>
-                      <th className="text-center py-2 px-3 text-gray-500 font-medium">Situación</th>
-                      <th className="text-right py-2 px-3 text-gray-500 font-medium">Monto</th>
-                      <th className="text-right py-2 px-3 text-gray-500 font-medium">Días Atraso</th>
-                      <th className="text-center py-2 px-3 text-gray-500 font-medium">Flags</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {deudas.periodos[0]?.entidades?.map((ent: any, i: number) => {
-                      const sit = SITUACION_LABELS[ent.situacion] || {
-                        label: `Sit. ${ent.situacion}`,
-                        color: "text-gray-600 bg-gray-50",
-                      };
-                      return (
-                        <tr key={i} className="border-b border-gray-50">
-                          <td className="py-2.5 px-3">{ent.entidad}</td>
-                          <td className="py-2.5 px-3 text-center">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${sit.color}`}>
-                              {sit.label}
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-mono">
-                            $ {formatCurrency(ent.monto)}
-                          </td>
-                          <td className="py-2.5 px-3 text-right">
-                            {ent.diasAtrasoPago || 0}
-                          </td>
-                          <td className="py-2.5 px-3 text-center space-x-1">
-                            {ent.refinanciaciones && (
-                              <span className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">REF</span>
-                            )}
-                            {ent.procesoJud && (
-                              <span className="text-xs bg-red-50 text-red-600 px-1.5 py-0.5 rounded">JUD</span>
-                            )}
-                            {ent.situacionJuridica && (
-                              <span className="text-xs bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded">SIT.JUR</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+          <Card title="Situacion crediticia actual">
+            {entidadesActuales.length > 0 ? (
+              <div>
+                <div className="hidden overflow-x-auto md:block">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-100">
+                        <th className="px-3 py-2 text-left font-medium text-slate-500">Entidad</th>
+                        <th className="px-3 py-2 text-center font-medium text-slate-500">Situacion</th>
+                        <th className="px-3 py-2 text-right font-medium text-slate-500">Monto</th>
+                        <th className="px-3 py-2 text-right font-medium text-slate-500">Dias atraso</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {entidadesActuales.map((ent: any, i: number) => {
+                        const sit = SITUACION_LABELS[ent.situacion] || {
+                          label: `Sit. ${ent.situacion}`,
+                          color: "text-slate-700 bg-slate-100",
+                        };
+                        return (
+                          <tr key={i} className="border-b border-slate-100">
+                            <td className="px-3 py-2.5">{ent.entidad}</td>
+                            <td className="px-3 py-2.5 text-center">
+                              <span className={`rounded-full px-2 py-1 text-xs font-medium ${sit.color}`}>{sit.label}</span>
+                            </td>
+                            <td className="px-3 py-2.5 text-right">$ {formatCurrency(ent.monto)}</td>
+                            <td className="px-3 py-2.5 text-right">{ent.diasAtrasoPago || 0}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="space-y-2 md:hidden">
+                  {entidadesActuales.map((ent: any, i: number) => {
+                    const sit = SITUACION_LABELS[ent.situacion] || {
+                      label: `Sit. ${ent.situacion}`,
+                      color: "text-slate-700 bg-slate-100",
+                    };
+                    return (
+                      <div key={i} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                        <p className="font-semibold text-slate-800">{ent.entidad}</p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span className={`rounded-full px-2 py-1 text-xs font-medium ${sit.color}`}>{sit.label}</span>
+                          <span className="text-slate-600">$ {formatCurrency(ent.monto)}</span>
+                          <span className="text-slate-500">Atraso: {ent.diasAtrasoPago || 0} dias</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             ) : (
-              <p className="text-gray-400 text-sm">Sin deudas registradas</p>
+              <p className="text-sm text-slate-500">No hay deudas registradas para el periodo actual.</p>
             )}
           </Card>
 
-          {/* Historial */}
-          {historial?.periodos && historial.periodos.length > 0 && (
-            <Card title="Historial Crediticio (24 meses)">
+          {historial?.periodos?.length > 0 && (
+            <Card title="Historial crediticio reciente">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-gray-100">
-                      <th className="text-left py-2 px-3 text-gray-500 font-medium">Período</th>
-                      <th className="text-left py-2 px-3 text-gray-500 font-medium">Entidad</th>
-                      <th className="text-center py-2 px-3 text-gray-500 font-medium">Situación</th>
-                      <th className="text-right py-2 px-3 text-gray-500 font-medium">Monto</th>
+                    <tr className="border-b border-slate-100">
+                      <th className="px-3 py-2 text-left font-medium text-slate-500">Periodo</th>
+                      <th className="px-3 py-2 text-left font-medium text-slate-500">Entidad</th>
+                      <th className="px-3 py-2 text-center font-medium text-slate-500">Situacion</th>
+                      <th className="px-3 py-2 text-right font-medium text-slate-500">Monto</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -264,20 +267,16 @@ export default function DeudoresPage() {
                       p.entidades?.map((ent: any, i: number) => {
                         const sit = SITUACION_LABELS[ent.situacion] || {
                           label: `${ent.situacion}`,
-                          color: "text-gray-600 bg-gray-50",
+                          color: "text-slate-700 bg-slate-100",
                         };
                         return (
-                          <tr key={`${p.periodo}-${i}`} className="border-b border-gray-50">
-                            <td className="py-2 px-3 text-gray-500">{p.periodo}</td>
-                            <td className="py-2 px-3">{ent.entidad}</td>
-                            <td className="py-2 px-3 text-center">
-                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${sit.color}`}>
-                                {sit.label}
-                              </span>
+                          <tr key={`${p.periodo}-${i}`} className="border-b border-slate-100">
+                            <td className="px-3 py-2">{p.periodo}</td>
+                            <td className="px-3 py-2">{ent.entidad}</td>
+                            <td className="px-3 py-2 text-center">
+                              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${sit.color}`}>{sit.label}</span>
                             </td>
-                            <td className="py-2 px-3 text-right font-mono">
-                              $ {formatCurrency(ent.monto)}
-                            </td>
+                            <td className="px-3 py-2 text-right">$ {formatCurrency(ent.monto)}</td>
                           </tr>
                         );
                       }) || []
@@ -288,49 +287,48 @@ export default function DeudoresPage() {
             </Card>
           )}
 
-          {/* Cheques rechazados */}
-          {chequesRech?.causales && chequesRech.causales.length > 0 && (
-            <Card title="Cheques Rechazados">
-              <div className="flex items-center gap-2 mb-3 text-amber-600">
-                <AlertTriangle size={18} />
-                <span className="text-sm font-medium">
-                  Se encontraron cheques rechazados
-                </span>
+          {chequesRech?.causales?.length > 0 && (
+            <Card title="Cheques rechazados">
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">
+                <CircleAlert size={14} />
+                Se encontraron rechazos en el historial
               </div>
-              {chequesRech.causales.map((causal: any, ci: number) => (
-                <div key={ci} className="mb-4">
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">
-                    Causal: {causal.causal}
-                  </h4>
-                  {causal.entidades?.flatMap((ent: any) =>
-                    ent.detalle?.map((d: any, di: number) => (
-                      <div
-                        key={`${ci}-${di}`}
-                        className="flex justify-between items-center bg-gray-50 rounded-lg px-4 py-2 mb-1 text-sm"
-                      >
-                        <span>Cheque #{d.nroCheque}</span>
-                        <span>$ {formatCurrency(d.monto)}</span>
-                        <span className="text-gray-400">
-                          {formatDate(d.fechaRechazo)}
-                        </span>
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded ${
-                            d.fechaPago
-                              ? "bg-green-50 text-green-600"
-                              : "bg-red-50 text-red-600"
-                          }`}
-                        >
-                          {d.fechaPago ? "Pagado" : "Impago"}
-                        </span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              ))}
+              <div className="space-y-3">
+                {chequesRech.causales.map((causal: any, ci: number) => (
+                  <div key={ci} className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+                    <p className="mb-2 text-sm font-semibold text-slate-800">Causal: {causal.causal}</p>
+                    <div className="space-y-1">
+                      {causal.entidades?.flatMap((ent: any) =>
+                        ent.detalle?.map((d: any, di: number) => (
+                          <div
+                            key={`${ci}-${di}`}
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"
+                          >
+                            <span>Cheque #{d.nroCheque}</span>
+                            <span>$ {formatCurrency(d.monto)}</span>
+                            <span>{formatDate(d.fechaRechazo)}</span>
+                            <span className={`rounded-full px-2 py-0.5 ${d.fechaPago ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                              {d.fechaPago ? "Pagado" : "Impago"}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </Card>
           )}
         </div>
       )}
+
+      <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-800">
+        <div className="mb-1 inline-flex items-center gap-1 font-semibold">
+          <AlertTriangle size={14} />
+          Consejo rapido
+        </div>
+        Verifica siempre la fecha del reporte y cruza esta informacion con tu banco antes de tomar decisiones.
+      </div>
     </div>
   );
 }

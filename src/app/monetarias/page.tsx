@@ -70,21 +70,21 @@ export default function MonetariasPage() {
   }, [catalogData, search]);
 
   return (
-    <div className="max-w-7xl">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard Monetario</h1>
-        <p className="text-gray-500 mt-1">
+    <div className="mx-auto max-w-7xl animate-fade-in">
+      <div className="surface-panel mb-6 rounded-3xl bg-gradient-to-r from-sky-900 to-blue-800 p-5 text-white md:p-7">
+        <h1 className="text-2xl font-bold md:text-3xl">Dashboard Monetario</h1>
+        <p className="mt-1 text-sm text-blue-100 md:text-base">
           Estadísticas monetarias y series del Informe Monetario Diario — API v4.0
         </p>
       </div>
 
       {/* Accesos rápidos */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div className="mb-6 grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-4 md:gap-3">
         {VARIABLES_DESTACADAS.map(({ id, label }) => (
           <button
             key={id}
             onClick={() => setSelectedVar(id)}
-            className={`text-left px-4 py-3 rounded-lg border text-sm transition-colors ${
+            className={`rounded-xl border px-4 py-3 text-left text-sm transition-colors ${
               selectedVar === id
                 ? "bg-bcra-blue text-white border-bcra-blue"
                 : "bg-white text-gray-700 border-gray-200 hover:border-bcra-blue"
@@ -95,7 +95,7 @@ export default function MonetariasPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-6">
         {/* Panel izquierdo: selector de variables */}
         <Card title="Variables" className="lg:col-span-1 max-h-[600px] overflow-hidden flex flex-col">
           <input
@@ -133,7 +133,7 @@ export default function MonetariasPage() {
         </Card>
 
         {/* Panel derecho: gráfico y detalles */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="space-y-4 lg:col-span-2 lg:space-y-6">
           {/* Info de la variable */}
           {selectedInfo && (
             <Card>
@@ -167,19 +167,19 @@ export default function MonetariasPage() {
           )}
 
           {/* Rango de fechas */}
-          <div className="flex gap-3 items-center">
+          <div className="surface-panel flex flex-col gap-2 rounded-2xl p-3 sm:flex-row sm:items-center">
             <input
               type="date"
               value={dateRange.desde}
               onChange={(e) => setDateRange((r) => ({ ...r, desde: e.target.value }))}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm sm:w-auto"
             />
-            <span className="text-gray-400">a</span>
+            <span className="text-center text-gray-400">a</span>
             <input
               type="date"
               value={dateRange.hasta}
               onChange={(e) => setDateRange((r) => ({ ...r, hasta: e.target.value }))}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm sm:w-auto"
             />
           </div>
 

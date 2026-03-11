@@ -1,303 +1,236 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
+import { ArrowDownUp, Filter, Landmark } from "lucide-react";
 import { useFetch, formatCurrency } from "@/lib/hooks";
 import Card from "@/components/ui/Card";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import ErrorAlert from "@/components/ui/ErrorAlert";
-import type {
-  PlazoFijoResponse,
-  PrestamoPersonalResponse,
-  PrestamoHipotecarioResponse,
-  TarjetaCreditoResponse,
-} from "@/types/bcra";
 
 type ProductType = "plazos-fijos" | "personales" | "hipotecarios" | "prendarios" | "tarjetas" | "cajas-ahorro" | "paquetes";
+type FieldKind = "text" | "percent" | "currency";
+
+interface ProductField {
+  key: string;
+  label: string;
+  kind: FieldKind;
+}
 
 const PRODUCT_TABS: { id: ProductType; label: string }[] = [
   { id: "plazos-fijos", label: "Plazos Fijos" },
-  { id: "personales", label: "Préstamos Personales" },
-  { id: "hipotecarios", label: "Préstamos Hipotecarios" },
-  { id: "prendarios", label: "Préstamos Prendarios" },
-  { id: "tarjetas", label: "Tarjetas de Crédito" },
+  { id: "personales", label: "Prestamos Personales" },
+  { id: "hipotecarios", label: "Prestamos Hipotecarios" },
+  { id: "prendarios", label: "Prestamos Prendarios" },
+  { id: "tarjetas", label: "Tarjetas" },
   { id: "cajas-ahorro", label: "Cajas de Ahorro" },
   { id: "paquetes", label: "Paquetes" },
 ];
 
+const FIELD_CONFIG: Record<ProductType, ProductField[]> = {
+  "plazos-fijos": [
+    { key: "tasaEfectivaAnualMinima", label: "TEA min", kind: "percent" },
+    { key: "montoMinimoInvertir", label: "Monto min", kind: "currency" },
+    { key: "plazoMinimoInvertirDias", label: "Plazo min (dias)", kind: "text" },
+    { key: "canalConstitucion", label: "Canal", kind: "text" },
+  ],
+  personales: [
+    { key: "tasaEfectivaAnualMaxima", label: "TEA max", kind: "percent" },
+    { key: "costoFinancieroEfectivoTotalMaximo", label: "CFT max", kind: "percent" },
+    { key: "montoMaximoOtorgable", label: "Monto max", kind: "currency" },
+    { key: "ingresoMinimoMensual", label: "Ingreso min", kind: "currency" },
+  ],
+  hipotecarios: [
+    { key: "tasaEfectivaAnualMaxima", label: "TEA max", kind: "percent" },
+    { key: "costoFinancieroEfectivoTotalMaximo", label: "CFT max", kind: "percent" },
+    { key: "montoMaximoOtorgable", label: "Monto max", kind: "currency" },
+    { key: "plazoMaximoOtorgable", label: "Plazo max", kind: "text" },
+  ],
+  prendarios: [
+    { key: "tasaEfectivaAnualMaxima", label: "TEA max", kind: "percent" },
+    { key: "costoFinancieroEfectivoTotalMaximo", label: "CFT max", kind: "percent" },
+    { key: "montoMaximoOtorgable", label: "Monto max", kind: "currency" },
+    { key: "plazoMaximoOtorgable", label: "Plazo max", kind: "text" },
+  ],
+  tarjetas: [
+    { key: "tasaEfectivaAnualMaximaFinanciacion", label: "TEA financiacion", kind: "percent" },
+    { key: "tasaEfectivaAnualMaximaAdelantoEfectivo", label: "TEA adelanto", kind: "percent" },
+    { key: "comisionMaximaAdministracionMantenimiento", label: "Comision mant", kind: "currency" },
+    { key: "ingresoMinimoMensual", label: "Ingreso min", kind: "currency" },
+  ],
+  "cajas-ahorro": [
+    { key: "fechaInformacion", label: "Fecha", kind: "text" },
+    { key: "procesoSimplificadoDebidaDiligencia", label: "Proc. simplificado", kind: "text" },
+    { key: "codigoEntidad", label: "Codigo", kind: "text" },
+    { key: "moneda", label: "Moneda", kind: "text" },
+  ],
+  paquetes: [
+    { key: "comisionMaximaMantenimiento", label: "Comision mant", kind: "currency" },
+    { key: "ingresoMinimoMensual", label: "Ingreso min", kind: "currency" },
+    { key: "segmento", label: "Segmento", kind: "text" },
+    { key: "productosIntegrantes", label: "Incluye", kind: "text" },
+  ],
+};
+
+function formatField(value: any, kind: FieldKind) {
+  if (value == null || value === "") return "-";
+  if (kind === "currency") return `$ ${formatCurrency(Number(value), 0)}`;
+  if (kind === "percent") return `${value}%`;
+  return String(value);
+}
+
 export default function TransparenciaPage() {
   const [selectedType, setSelectedType] = useState<ProductType>("plazos-fijos");
-  const [sortBy, setSortBy] = useState<string>("");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [sortBy, setSortBy] = useState<string>("descripcionEntidad");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [query, setQuery] = useState("");
 
-  const url = `/api/transparencia?tipo=${selectedType}`;
-  const { data, loading, error } = useFetch<any>(url);
-
+  const { data, loading, error } = useFetch<any>(`/api/transparencia?tipo=${selectedType}`);
   const results = data?.results || [];
+  const fields = FIELD_CONFIG[selectedType];
 
-  // Sorting
+  const filteredResults = useMemo(() => {
+    if (!query) return results;
+    const q = query.toLowerCase();
+    return results.filter((item: any) => {
+      const entidad = String(item.descripcionEntidad || "").toLowerCase();
+      const nombre = String(item.nombreCorto || item.nombreCompleto || "").toLowerCase();
+      return entidad.includes(q) || nombre.includes(q);
+    });
+  }, [results, query]);
+
   const sortedResults = useMemo(() => {
-    if (!sortBy || !results.length) return results;
-    return [...results].sort((a: any, b: any) => {
-      const va = a[sortBy] ?? 0;
-      const vb = b[sortBy] ?? 0;
+    if (!sortBy) return filteredResults;
+    return [...filteredResults].sort((a: any, b: any) => {
+      const va = a[sortBy] ?? "";
+      const vb = b[sortBy] ?? "";
       if (typeof va === "number" && typeof vb === "number") {
         return sortDir === "asc" ? va - vb : vb - va;
       }
-      return sortDir === "asc"
-        ? String(va).localeCompare(String(vb))
-        : String(vb).localeCompare(String(va));
+      return sortDir === "asc" ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
     });
-  }, [results, sortBy, sortDir]);
+  }, [filteredResults, sortBy, sortDir]);
 
-  function handleSort(field: string) {
+  function onSort(field: string) {
     if (sortBy === field) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortBy(field);
-      setSortDir("desc");
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
     }
-  }
-
-  function SortHeader({ field, label }: { field: string; label: string }) {
-    return (
-      <th
-        className="py-2 px-3 text-gray-500 font-medium cursor-pointer hover:text-bcra-blue select-none"
-        onClick={() => handleSort(field)}
-      >
-        {label}
-        {sortBy === field && (
-          <span className="ml-1">{sortDir === "asc" ? "↑" : "↓"}</span>
-        )}
-      </th>
-    );
+    setSortBy(field);
+    setSortDir("asc");
   }
 
   return (
-    <div className="max-w-7xl">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Comparador Financiero</h1>
-        <p className="text-gray-500 mt-1">
-          Régimen de Transparencia v1.0 — Compará productos entre entidades
+    <div className="mx-auto max-w-7xl space-y-5 animate-fade-in">
+      <section className="surface-panel rounded-3xl bg-gradient-to-r from-emerald-800 to-teal-700 p-5 text-white md:p-7">
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-emerald-100">Consulta prioritaria</p>
+        <h1 className="text-2xl font-bold md:text-3xl">Comparador Financiero</h1>
+        <p className="mt-2 max-w-3xl text-sm text-emerald-100">
+          Compara bancos en un lenguaje claro y elige mejor. Vista optimizada para telefono y uso cotidiano.
         </p>
-      </div>
+      </section>
 
-      {/* Tabs de producto */}
-      <div className="flex flex-wrap gap-2 mb-6">
-        {PRODUCT_TABS.map(({ id, label }) => (
-          <button
-            key={id}
-            onClick={() => { setSelectedType(id); setSortBy(""); }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              selectedType === id
-                ? "bg-bcra-blue text-white"
-                : "bg-white text-gray-600 border border-gray-200 hover:border-bcra-blue"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <Card>
+        <div className="mb-4 flex flex-wrap gap-2">
+          {PRODUCT_TABS.map(({ id, label }) => (
+            <button
+              key={id}
+              onClick={() => {
+                setSelectedType(id);
+                setSortBy("descripcionEntidad");
+                setSortDir("asc");
+              }}
+              className={`rounded-full border px-3 py-2 text-xs font-semibold md:text-sm ${
+                selectedType === id
+                  ? "border-teal-700 bg-teal-700 text-white"
+                  : "border-slate-200 bg-slate-50 text-slate-700"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs text-slate-600">
+            <Landmark size={14} />
+            {sortedResults.length} productos disponibles
+          </div>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Filtrar por banco o producto"
+            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm md:max-w-xs"
+          />
+        </div>
+      </Card>
 
       {loading && <LoadingSpinner text="Cargando productos..." />}
       {error && <ErrorAlert message={error} />}
 
       {!loading && !error && (
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm text-gray-500">
-              {sortedResults.length} productos encontrados
-            </p>
-          </div>
+        <>
+          <Card title="Comparacion rapida (mobile)">
+            <div className="space-y-3 md:hidden">
+              {sortedResults.slice(0, 40).map((r: any, i: number) => (
+                <div key={i} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-sm font-semibold text-slate-900">{r.descripcionEntidad || "Entidad"}</p>
+                  <p className="text-xs text-slate-500">{r.nombreCorto || r.nombreCompleto || "Producto"}</p>
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                    {fields.slice(0, 3).map((field) => (
+                      <div key={`${i}-${field.key}`} className="rounded-lg bg-white px-2 py-1.5">
+                        <p className="text-slate-500">{field.label}</p>
+                        <p className="font-semibold text-slate-800">{formatField(r[field.key], field.kind)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
 
-          <div className="overflow-x-auto">
-            {/* Tabla dinámica según el tipo de producto */}
-            {selectedType === "plazos-fijos" && (
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-100 text-left">
-                    <SortHeader field="descripcionEntidad" label="Entidad" />
-                    <SortHeader field="nombreCorto" label="Producto" />
-                    <SortHeader field="denominacion" label="Moneda" />
-                    <SortHeader field="tasaEfectivaAnualMinima" label="TEA Mín." />
-                    <SortHeader field="montoMinimoInvertir" label="Monto Mín." />
-                    <SortHeader field="plazoMinimoInvertirDias" label="Plazo Mín. (días)" />
-                    <th className="py-2 px-3 text-gray-500 font-medium">Canal</th>
+                  <tr className="border-b border-slate-100 text-left">
+                    <th className="px-3 py-2 font-medium text-slate-500">
+                      <button onClick={() => onSort("descripcionEntidad")} className="inline-flex items-center gap-1 hover:text-slate-800">
+                        Entidad
+                        <ArrowDownUp size={13} />
+                      </button>
+                    </th>
+                    <th className="px-3 py-2 font-medium text-slate-500">
+                      <button onClick={() => onSort("nombreCorto")} className="inline-flex items-center gap-1 hover:text-slate-800">
+                        Producto
+                        <Filter size={13} />
+                      </button>
+                    </th>
+                    {fields.map((field) => (
+                      <th key={field.key} className="px-3 py-2 font-medium text-slate-500">
+                        <button onClick={() => onSort(field.key)} className="inline-flex items-center gap-1 hover:text-slate-800">
+                          {field.label}
+                          <ArrowDownUp size={13} />
+                        </button>
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {sortedResults.map((r: any, i: number) => (
-                    <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="py-2.5 px-3 font-medium">{r.descripcionEntidad}</td>
-                      <td className="py-2.5 px-3">{r.nombreCorto || r.nombreCompleto}</td>
-                      <td className="py-2.5 px-3">{r.denominacion || "—"}</td>
-                      <td className="py-2.5 px-3 text-right font-bold text-green-600">
-                        {r.tasaEfectivaAnualMinima != null ? `${r.tasaEfectivaAnualMinima}%` : "—"}
-                      </td>
-                      <td className="py-2.5 px-3 text-right">
-                        {r.montoMinimoInvertir != null ? `$ ${formatCurrency(r.montoMinimoInvertir, 0)}` : "—"}
-                      </td>
-                      <td className="py-2.5 px-3 text-right">{r.plazoMinimoInvertirDias || "—"}</td>
-                      <td className="py-2.5 px-3 text-gray-500">{r.canalConstitucion || "—"}</td>
+                    <tr key={i} className="border-b border-slate-100">
+                      <td className="px-3 py-2.5 font-medium text-slate-800">{r.descripcionEntidad || "-"}</td>
+                      <td className="px-3 py-2.5 text-slate-600">{r.nombreCorto || r.nombreCompleto || "-"}</td>
+                      {fields.map((field) => (
+                        <td key={`${i}-${field.key}`} className="px-3 py-2.5 text-slate-600">
+                          {formatField(r[field.key], field.kind)}
+                        </td>
+                      ))}
                     </tr>
                   ))}
                 </tbody>
               </table>
-            )}
-
-            {(selectedType === "personales" || selectedType === "hipotecarios" || selectedType === "prendarios") && (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 text-left">
-                    <SortHeader field="descripcionEntidad" label="Entidad" />
-                    <SortHeader field="nombreCorto" label="Producto" />
-                    <SortHeader field="tasaEfectivaAnualMaxima" label="TEA Máx." />
-                    <SortHeader field="costoFinancieroEfectivoTotalMaximo" label="CFT Máx." />
-                    <SortHeader field="montoMaximoOtorgable" label="Monto Máx." />
-                    <SortHeader field="plazoMaximoOtorgable" label="Plazo Máx. (meses)" />
-                    <SortHeader field="ingresoMinimoMensual" label="Ingreso Mín." />
-                    <th className="py-2 px-3 text-gray-500 font-medium">Tipo Tasa</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedResults.map((r: any, i: number) => (
-                    <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="py-2.5 px-3 font-medium">{r.descripcionEntidad}</td>
-                      <td className="py-2.5 px-3">{r.nombreCorto || r.nombreCompleto}</td>
-                      <td className="py-2.5 px-3 text-right font-bold text-red-600">
-                        {r.tasaEfectivaAnualMaxima != null ? `${r.tasaEfectivaAnualMaxima}%` : "—"}
-                      </td>
-                      <td className="py-2.5 px-3 text-right">
-                        {r.costoFinancieroEfectivoTotalMaximo != null
-                          ? `${r.costoFinancieroEfectivoTotalMaximo}%`
-                          : "—"}
-                      </td>
-                      <td className="py-2.5 px-3 text-right">
-                        {r.montoMaximoOtorgable != null
-                          ? `$ ${formatCurrency(r.montoMaximoOtorgable, 0)}`
-                          : "—"}
-                      </td>
-                      <td className="py-2.5 px-3 text-right">{r.plazoMaximoOtorgable || "—"}</td>
-                      <td className="py-2.5 px-3 text-right">
-                        {r.ingresoMinimoMensual != null
-                          ? `$ ${formatCurrency(r.ingresoMinimoMensual, 0)}`
-                          : "—"}
-                      </td>
-                      <td className="py-2.5 px-3 text-gray-500">{r.tipoTasa || "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-
-            {selectedType === "tarjetas" && (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 text-left">
-                    <SortHeader field="descripcionEntidad" label="Entidad" />
-                    <SortHeader field="nombreCorto" label="Tarjeta" />
-                    <SortHeader field="tasaEfectivaAnualMaximaFinanciacion" label="TEA Financiación" />
-                    <SortHeader field="tasaEfectivaAnualMaximaAdelantoEfectivo" label="TEA Adelanto" />
-                    <SortHeader field="comisionMaximaAdministracionMantenimiento" label="Comisión Mant." />
-                    <SortHeader field="comisionMaximaRenovacion" label="Comisión Renov." />
-                    <SortHeader field="ingresoMinimoMensual" label="Ingreso Mín." />
-                    <th className="py-2 px-3 text-gray-500 font-medium">Segmento</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedResults.map((r: any, i: number) => (
-                    <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="py-2.5 px-3 font-medium">{r.descripcionEntidad}</td>
-                      <td className="py-2.5 px-3">{r.nombreCorto || r.nombreCompleto}</td>
-                      <td className="py-2.5 px-3 text-right">
-                        {r.tasaEfectivaAnualMaximaFinanciacion != null
-                          ? `${r.tasaEfectivaAnualMaximaFinanciacion}%`
-                          : "—"}
-                      </td>
-                      <td className="py-2.5 px-3 text-right">
-                        {r.tasaEfectivaAnualMaximaAdelantoEfectivo != null
-                          ? `${r.tasaEfectivaAnualMaximaAdelantoEfectivo}%`
-                          : "—"}
-                      </td>
-                      <td className="py-2.5 px-3 text-right">
-                        {r.comisionMaximaAdministracionMantenimiento != null
-                          ? `$ ${formatCurrency(r.comisionMaximaAdministracionMantenimiento, 0)}`
-                          : "—"}
-                      </td>
-                      <td className="py-2.5 px-3 text-right">
-                        {r.comisionMaximaRenovacion != null
-                          ? `$ ${formatCurrency(r.comisionMaximaRenovacion, 0)}`
-                          : "—"}
-                      </td>
-                      <td className="py-2.5 px-3 text-right">
-                        {r.ingresoMinimoMensual != null
-                          ? `$ ${formatCurrency(r.ingresoMinimoMensual, 0)}`
-                          : "—"}
-                      </td>
-                      <td className="py-2.5 px-3 text-gray-500">{r.segmento || "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-
-            {(selectedType === "cajas-ahorro" || selectedType === "paquetes") && (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 text-left">
-                    <SortHeader field="descripcionEntidad" label="Entidad" />
-                    {selectedType === "paquetes" && (
-                      <>
-                        <SortHeader field="nombreCorto" label="Paquete" />
-                        <SortHeader field="comisionMaximaMantenimiento" label="Comisión Mant." />
-                        <SortHeader field="ingresoMinimoMensual" label="Ingreso Mín." />
-                        <th className="py-2 px-3 text-gray-500 font-medium">Segmento</th>
-                        <th className="py-2 px-3 text-gray-500 font-medium">Productos</th>
-                      </>
-                    )}
-                    {selectedType === "cajas-ahorro" && (
-                      <>
-                        <th className="py-2 px-3 text-gray-500 font-medium">Fecha Info</th>
-                        <th className="py-2 px-3 text-gray-500 font-medium">Proc. Simplificado</th>
-                      </>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedResults.map((r: any, i: number) => (
-                    <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="py-2.5 px-3 font-medium">{r.descripcionEntidad}</td>
-                      {selectedType === "paquetes" && (
-                        <>
-                          <td className="py-2.5 px-3">{r.nombreCorto || r.nombreCompleto}</td>
-                          <td className="py-2.5 px-3 text-right">
-                            {r.comisionMaximaMantenimiento != null
-                              ? `$ ${formatCurrency(r.comisionMaximaMantenimiento, 0)}`
-                              : "—"}
-                          </td>
-                          <td className="py-2.5 px-3 text-right">
-                            {r.ingresoMinimoMensual != null
-                              ? `$ ${formatCurrency(r.ingresoMinimoMensual, 0)}`
-                              : "—"}
-                          </td>
-                          <td className="py-2.5 px-3 text-gray-500">{r.segmento || "—"}</td>
-                          <td className="py-2.5 px-3 text-gray-500 text-xs max-w-xs truncate">
-                            {r.productosIntegrantes || "—"}
-                          </td>
-                        </>
-                      )}
-                      {selectedType === "cajas-ahorro" && (
-                        <>
-                          <td className="py-2.5 px-3 text-gray-500">{r.fechaInformacion || "—"}</td>
-                          <td className="py-2.5 px-3">{r.procesoSimplificadoDebidaDiligencia || "—"}</td>
-                        </>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </Card>
+            </div>
+          </Card>
+        </>
       )}
     </div>
   );
