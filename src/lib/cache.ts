@@ -78,11 +78,11 @@ class MemoryCache {
    */
   invalidatePattern(pattern: string): void {
     const regex = new RegExp(pattern);
-    for (const key of this.store.keys()) {
+    this.store.forEach((_, key) => {
       if (regex.test(key)) {
         this.store.delete(key);
       }
-    }
+    });
   }
 
   /**
@@ -91,12 +91,12 @@ class MemoryCache {
   private cleanup(): void {
     const now = Date.now();
     let cleaned = 0;
-    for (const [key, entry] of this.store.entries()) {
+    this.store.forEach((entry, key) => {
       if (now > entry.expiresAt) {
         this.store.delete(key);
         cleaned++;
       }
-    }
+    });
     if (cleaned > 0) {
       console.log(`[CACHE] Cleaned ${cleaned} expired entries`);
     }

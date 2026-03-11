@@ -7,13 +7,13 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const filters: Record<string, string | number> = {};
 
-    for (const [key, value] of searchParams.entries()) {
+    searchParams.forEach((value, key) => {
       if (["Limit", "Offset", "IdVariable"].includes(key)) {
         filters[key] = Number(value);
       } else {
         filters[key] = value;
       }
-    }
+    });
 
     const data = await monetariasService.getVariables(
       Object.keys(filters).length > 0 ? filters as any : undefined
