@@ -1,4 +1,4 @@
-import { deudores } from "@/lib/bcra-client";
+import { BCRAClientError, deudores } from "@/lib/bcra-client";
 import type {
   DeudaResponse,
   HistorialResponse,
@@ -33,13 +33,29 @@ export const deudoresService = {
       this.getChequesRechazados(cuit),
     ]);
 
+    const normalizeError = (reason: unknown): string => {
+      if (reason instanceof Error) return reason.message;
+      return "Error desconocido";
+    };
+
+    const shouldIgnoreError = (reason: unknown): boolean => {
+      if (!(reason instanceof BCRAClientError)) return false;
+      const isChequesRechazadosEndpoint = reason.endpoint.includes("/Deudas/ChequesRechazados/");
+      const hasNoDataMessage = reason.errorMessages.some((msg) =>
+        msg.toLowerCase().includes("no se encontró datos") ||
+        msg.toLowerCase().includes("no se encontro datos")
+      );
+      return reason.statusCode === 404 && isChequesRechazadosEndpoint && hasNoDataMessage;
+    };
+
     return {
       deudas: deudasRes.status === "fulfilled" ? deudasRes.value : null,
       historial: historialRes.status === "fulfilled" ? historialRes.value : null,
       chequesRechazados: chequesRes.status === "fulfilled" ? chequesRes.value : null,
       errors: [deudasRes, historialRes, chequesRes]
-        .filter((r) => r.status === "rejected")
-        .map((r) => (r as PromiseRejectedResult).reason?.message || "Error desconocido"),
+        .filter((r): r is PromiseRejectedResult => r.status === "rejected")
+        .filter((r) => !shouldIgnoreError(r.reason))
+        .map((r) => normalizeError(r.reason)),
     };
   },
 };

@@ -22,11 +22,16 @@ import {
 } from "recharts";
 import { DollarSign, TrendingUp, TrendingDown } from "lucide-react";
 
+function toLocalDateInputValue(date: Date): string {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60 * 1000);
+  return local.toISOString().slice(0, 10);
+}
+
 export default function CambiariasPage() {
   const [selectedMoneda, setSelectedMoneda] = useState("USD");
   const [dateRange, setDateRange] = useState({
-    desde: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-    hasta: new Date().toISOString().split("T")[0],
+    desde: toLocalDateInputValue(new Date(Date.now() - 180 * 24 * 60 * 60 * 1000)),
+    hasta: toLocalDateInputValue(new Date()),
   });
 
   // Datos
